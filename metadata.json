@@ -1,0 +1,6 @@
+{
+  "name": "Blue Lock: Reign of Egoists",
+  "description": "Plataforma oficial de rol Blue Lock — Gestión de fichas con IA, ranking en yenes, clubes, entrenamientos diarios y calculadora de tiros.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
