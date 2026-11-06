@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CharacterSheet, TrainingItemSubmission, RankingPlayer, UserSession } from '../types.ts';
 import { generateSheetWhatsAppText, openWhatsAppShare } from '../utils/whatsapp.ts';
-import { Shield, Check, X, Bot, AlertCircle, Edit3, Award, Sparkles, MessageSquare, Send, CheckCircle2, Lock } from 'lucide-react';
+import { Shield, Check, X, Bot, AlertCircle, Edit3, Award, Sparkles, MessageSquare, Send, CheckCircle2, Lock, Trophy } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface AdminPanelTabProps {
@@ -302,15 +302,29 @@ export const AdminPanelTab: React.FC<AdminPanelTabProps> = ({
                   </div>
                 </div>
 
-                {/* Stats Breakdown with 30 pts check */}
+                {/* Stats Breakdown with 30 pts check / Unlimited progression */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-xs font-mono">
-                    <span className="text-slate-400 uppercase">Distribución de Estadísticas (30 Puntos Base)</span>
+                    <span className="text-slate-400 uppercase">Distribución de Estadísticas</span>
                     {(() => {
                       const total = Number(selectedSheet.stats.tiro) + Number(selectedSheet.stats.defensa) + Number(selectedSheet.stats.velocidad) + Number(selectedSheet.stats.regate) + Number(selectedSheet.stats.pase) + Number(selectedSheet.stats.iq);
+                      if (total === 30) {
+                        return (
+                          <span className="font-bold text-emerald-400">
+                            Suma: 30 / 30 ✓ (Nuevo Ingreso)
+                          </span>
+                        );
+                      }
+                      if (total > 30) {
+                        return (
+                          <span className="font-bold text-cyan-400">
+                            Suma: {total} Pts ✓ (Progresión / Veterano)
+                          </span>
+                        );
+                      }
                       return (
-                        <span className={`font-bold ${total === 30 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          Suma: {total} / 30 {total === 30 ? '✓ REGLAMENTARIO' : '✗ ILEGAL'}
+                        <span className="font-bold text-rose-400">
+                          Suma: {total} / 30 ✗ (Incompleto: faltan {30 - total} pts)
                         </span>
                       );
                     })()}
@@ -340,6 +354,49 @@ export const AdminPanelTab: React.FC<AdminPanelTabProps> = ({
                     <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
                       <div className="text-[10px] text-purple-400">IQ</div>
                       <div className="text-sm font-bold text-white">{selectedSheet.stats.iq}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Match Progress (Section IV) */}
+                <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="text-amber-400 font-bold uppercase flex items-center gap-1.5">
+                      <Trophy className="w-3.5 h-3.5" />
+                      IV. Progreso de Partido & Mercado
+                    </span>
+                    <span className="text-cyan-400 font-bold">
+                      Nivel {selectedSheet.progreso?.nivel || 1} • ¥{(selectedSheet.progreso?.valorMercado || 300).toLocaleString()} Yenes
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5 text-center font-mono text-xs">
+                    <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                      <div className="text-[10px] text-emerald-400">Goles</div>
+                      <div className="font-bold text-white">{selectedSheet.progreso?.goles || 0}</div>
+                    </div>
+                    <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                      <div className="text-[10px] text-cyan-400">Asist</div>
+                      <div className="font-bold text-white">{selectedSheet.progreso?.asistencias || 0}</div>
+                    </div>
+                    <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                      <div className="text-[10px] text-indigo-400">Robos</div>
+                      <div className="font-bold text-white">{selectedSheet.progreso?.robos || 0}</div>
+                    </div>
+                    <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                      <div className="text-[10px] text-amber-400">Vict</div>
+                      <div className="font-bold text-white">{selectedSheet.progreso?.victorias || 0}</div>
+                    </div>
+                    <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                      <div className="text-[10px] text-rose-400">Derr</div>
+                      <div className="font-bold text-white">{selectedSheet.progreso?.derrotas || 0}</div>
+                    </div>
+                    <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                      <div className="text-[10px] text-slate-400">Emp</div>
+                      <div className="font-bold text-white">{selectedSheet.progreso?.empates || 0}</div>
+                    </div>
+                    <div className="bg-slate-900 p-1.5 rounded border border-slate-800">
+                      <div className="text-[10px] text-yellow-400">MVP</div>
+                      <div className="font-bold text-white">{selectedSheet.progreso?.mvp || 0}</div>
                     </div>
                   </div>
                 </div>

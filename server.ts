@@ -358,8 +358,10 @@ app.post('/api/sheets/:id/evaluate-ai', async (req: Request, res: Response) => {
     let aiPrompt = `Eres Jinpachi Ego, el director supremo de Blue Lock. Tu misión es evaluar con frialdad analítica, perspicacia y tono egoísta la siguiente ficha de personaje para el roleplay oficial "BLUE LOCK — REIGN OF EGOISTS".
 
 REGLAS DEL SISTEMA BLUE LOCK:
-1. Estadísticas iniciales: Deben sumar exactamente 30 puntos repartidos entre Tiro (TIR), Defensa (DEF), Velocidad (VEL), Regate (REG), Pase (PAS) e IQ.
-   - Suma actual del jugador: ${totalStats} puntos. (TIR: ${sheet.stats.tiro}, DEF: ${sheet.stats.defensa}, VEL: ${sheet.stats.velocidad}, REG: ${sheet.stats.regate}, PAS: ${sheet.stats.pase}, IQ: ${sheet.stats.iq})
+1. Estadísticas:
+   - Para NUEVO INGRESO (nivel 1): Deben sumar exactamente 30 puntos base repartidos entre Tiro (TIR), Defensa (DEF), Velocidad (VEL), Regate (REG), Pase (PAS) e IQ.
+   - Para PROGRESIÓN / VETERANOS (jugadores con entrenamientos acumulados o renacimientos): Las estadísticas son ILIMITADAS y pueden superar los 30 puntos (ej. 40, 70, 100, 200+). Esto es 100% VÁLIDO y reglamentario.
+   - Suma actual de esta ficha: ${totalStats} puntos. (TIR: ${sheet.stats.tiro}, DEF: ${sheet.stats.defensa}, VEL: ${sheet.stats.velocidad}, REG: ${sheet.stats.regate}, PAS: ${sheet.stats.pase}, IQ: ${sheet.stats.iq}). Nivel actual: ${sheet.progreso?.nivel || 1}.
 2. Regla de Casillas y Arma: El arma define la movilidad. Solo si el arma está relacionada con Velocidad/Desplazamiento puede alcanzar hasta 4 casillas por turno con habilidades. Si no, el límite máximo es 3 casillas por turno.
    - Arma del personaje: "${sheet.arma}"
 3. Habilidades activas (Máximo 2):
@@ -396,7 +398,7 @@ DATOS DE LA FICHA A EVALUAR:
 - Compromiso: """${sheet.compromiso}"""
 
 INSTRUCCIONES DE RESPUESTA:
-Evalúa rigurosamente. Si cumple todos los requisitos matemáticos y cualitativos, recomiéndalo como APROBADO. Si tiene errores (ej. la suma de stats no es 30, líneas insuficientes, buffs ilegales o incoherencias), especifícalo claramente con las correcciones exactas que debe hacer.
+Evalúa rigurosamente. Si cumple todos los requisitos (suma de 30 para nuevos o >30 para progresión/veteranos, líneas mínimas, buffs dentro de regla y coherencia), recomiéndalo como APROBADO. Si tiene errores (ej. stats menores a 30 sin justificación, líneas insuficientes, buffs ilegales mayores al tope o incoherencias), especifícalo claramente con las correcciones exactas que debe hacer.
 Genera un análisis en tono Ego Jinpachi con:
 1. "dictamen": "APROBADO_RECOMENDADO" o "REQUIERE_CORRECCIONES"
 2. "puntuacionEgo": número del 1 al 100
@@ -412,7 +414,7 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
   "resumen": "texto del resumen",
   "correccionesSugeridas": ["si hay errores, ponlos aquí"],
   "whatsappText": "texto formateado para whatsapp"
-}`;
+} `;
 
     let aiResult;
     try {
@@ -426,24 +428,33 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
       aiResult = JSON.parse(response.text || '{}');
     } catch (modelErr) {
       console.warn('Gemini API call failed, generating deterministic rule-based evaluation:', modelErr);
-      const is30 = totalStats === 30;
+      const isStatsValid = totalStats === 30 || totalStats > 30;
+      const statEvalLabel = totalStats === 30
+        ? '30/30 puntos (Nuevo Ingreso - VÁLIDO)'
+        : totalStats > 30
+        ? `${totalStats} puntos (Progresión / Veterano - VÁLIDO ILIMITADO)`
+        : `${totalStats}/30 puntos (ERROR: Faltan puntos para el mínimo de 30)`;
       const isAge = (sheet.edadUsuario || 0) >= 17;
       const obs = [
-        `Suma de Estadísticas: ${totalStats}/30 puntos (${is30 ? 'CORRECTO' : 'ERROR: Debe sumar exactamente 30'})`,
+        `Estadísticas: ${statEvalLabel}`,
         `Edad de usuario: ${sheet.edadUsuario} años (${isAge ? 'CUMPLE (+17)' : 'NO CUMPLE: Debe tener +17 años'})`,
         `Personalidad: ${personalityLines}/6 líneas mínimas (${personalityLines >= 6 ? 'CUMPLE' : 'INSUFICIENTE'})`,
         `Prueba de Rol: ${roleplayLines}/15 líneas mínimas (${roleplayLines >= 15 ? 'CUMPLE' : 'INSUFICIENTE'})`,
         `Arma / Movilidad: ${sheet.arma ? 'Definida correctamente' : 'Falta detallar arma'}`
       ];
-      const valid = is30 && isAge && personalityLines >= 4 && roleplayLines >= 10;
+      const valid = isStatsValid && isAge && personalityLines >= 4 && roleplayLines >= 10;
       aiResult = {
         aprobadoRecomendado: valid,
         score: valid ? 88 : 55,
         observaciones: obs,
         resumen: valid
-          ? `La ficha de ${sheet.nombre} demuestra una mentalidad egoísta afinada y cumple con los 30 puntos reglamentarios. Recomendado para aprobación inmediata de los Administradores.`
+          ? `La ficha de ${sheet.nombre} demuestra una mentalidad egoísta afinada y cumple con la reglamentación (${totalStats > 30 ? 'progresión avanzada/ilimitada' : '30 puntos de ingreso'}). Recomendado para aprobación de los Administradores.`
           : `La ficha posee irregularidades que deben corregirse antes del ingreso formal al campo de juego.`,
-        correccionesSugeridas: valid ? [] : ['Ajustar la distribución de puntos a exactamente 30', 'Aumentar la extensión de la prueba de rol o personalidad'],
+        correccionesSugeridas: valid ? [] : [
+          ...(totalStats < 30 ? ['Completar el mínimo de 30 puntos base'] : []),
+          ...(personalityLines < 6 ? ['Extender la descripción de personalidad (mínimo 6 líneas)'] : []),
+          ...(roleplayLines < 15 ? ['Ampliar la prueba de rol (mínimo 15 líneas)'] : [])
+        ],
         whatsappText: `*BLUE LOCK REVISIÓN OFICIAL*\nJugador: ${sheet.nombre}\nEstado: ${valid ? 'Aprobado' : 'Revisión Pendiente'}`
       };
     }
@@ -464,6 +475,55 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
   } catch (err: any) {
     console.error('Error in evaluate-ai:', err);
     res.status(500).json({ error: err.message || 'Error en evaluación de IA' });
+  }
+});
+
+// 3.5. Submit Sheet for Admin Approval (Notifies the 5 Admins)
+app.post('/api/sheets/:id/submit-for-approval', (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { sheet: incomingSheet } = req.body;
+    const now = new Date().toISOString();
+
+    const sheetIdx = db.sheets.findIndex(s => s.id === id);
+    let savedSheet: CharacterSheet;
+
+    if (sheetIdx >= 0) {
+      savedSheet = {
+        ...db.sheets[sheetIdx],
+        ...(incomingSheet || {}),
+        status: 'pendiente',
+        updatedAt: now
+      };
+      db.sheets[sheetIdx] = savedSheet;
+    } else if (incomingSheet) {
+      savedSheet = {
+        ...incomingSheet,
+        id,
+        status: 'pendiente',
+        createdAt: now,
+        updatedAt: now
+      };
+      db.sheets.unshift(savedSheet);
+    } else {
+      return res.status(404).json({ error: 'Ficha no encontrada' });
+    }
+
+    // Add notification for the 5 admins (Chinatsu, Poseidón, Sae, Nagi, Fuji)
+    db.notifications.unshift({
+      id: `notif-${Date.now()}`,
+      titulo: 'Ficha Enviada a los Admins ⚽',
+      mensaje: `${savedSheet.nombre} (${savedSheet.nombreUsser || 'Usuario'}) ha enviado su ficha con sus progresos para aprobación oficial.`,
+      tipo: 'aprobacion',
+      fecha: now,
+      leido: false
+    });
+
+    saveDatabase(db);
+    res.json({ success: true, sheet: savedSheet, message: 'Ficha enviada a los 5 admins con éxito' });
+  } catch (err: any) {
+    console.error('Error submitting sheet for approval:', err);
+    res.status(500).json({ error: err.message || 'Error al enviar ficha para aprobación' });
   }
 });
 
@@ -772,6 +832,168 @@ app.post('/api/clubs/found', (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Error founding club:', err);
     res.status(500).json({ error: err.message || 'Error fundando club' });
+  }
+});
+
+// Helper: Fallback roleplay generator (50+ lines of humanized text)
+function generateFallbackRoleplay(personaje: string, tipoRol: string, longitudMinima: number = 50): string {
+  const isKaiser = personaje.toLowerCase().includes('kaiser');
+  const isSae = personaje.toLowerCase().includes('sae');
+  const isNagi = personaje.toLowerCase().includes('nagi');
+  const isKunigami = personaje.toLowerCase().includes('kunigami');
+
+  const pNombre = personaje || 'Michael Kaiser';
+  
+  const lineas = [
+    `El zumbido constante de las luces de neón en el pabellón de Blue Lock era lo único que rompía el silencio sepulcral de la madrugada.`,
+    `Mientras la gran mayoría de los peones descansaban en sus cubículos, agotados por la exigencia del sistema, una figura solitaria atravesaba las compuertas automáticas del complejo de alto rendimiento.`,
+    `Era ${pNombre}. Sus pasos resonaban con cadencia firme sobre el suelo de tartán sintético, sin titubeos ni un ápice de fatiga perceptible en su postura.`,
+    ``,
+    `—"El mundo está lleno de idiotas que creen que el talento surge por arte de magia..."— pensó para sus adentros, esbozando una sonrisa afilada cargada de desdén.`,
+    ``,
+    `La primera fase de la sesión comenzó en el sector del gimnasio de alta resistencia.`,
+    `Se despojó de la sudadera del uniforme, dejando al descubierto una musculatura pulida milímetro a milímetro bajo los estándares más implacables del fútbol europeo.`,
+    `Ajustó los seguros de la barra olímpica con discos pesados para iniciar las series de sentadilla profunda con pausa isométrica.`,
+    `Cien kilogramos. Ciento veinte. Ciento cuarenta.`,
+    `El peso descendía de forma controlada hasta romper el ángulo de noventa grados, tensando los cuádriceps y glúteos al límite antes de explotar verticalmente con una potencia demoledora.`,
+    `El sudor no tardó en brotar, deslizándose en finas gotas por su sien y cuello, pero su mirada se mantenía clavada al frente, fija en el espejo sin pestañear.`,
+    ``,
+    `—"Uno... dos... tres... cuatro... Cinco más. La mediocridad no tiene cabida en mi campo."`,
+    ``,
+    `Tras completar las cinco series de sentadillas, pasó de inmediato al área de peso muerto rumano y zancadas con mancuernas de cuarenta kilos para blindar los isquiotibiales.`,
+    `Cada repetición era una declaración de guerra contra la gravedad; cada respiración, una expulsión rítmica de dióxido de carbono que mantenía su pulso cardíaco en la zona óptima de hipertrofia funcional.`,
+    `Finalizó la rutina de pesas con tres series al fallo de dominadas con agarre neutro y lastre en la cintura, sintiendo cómo los dorsales se expandían como alas de acero.`,
+    ``,
+    `Bebió un trago corto de suero electrolítico frío, apenas humedeciéndose los labios, y se colocó los botines de competición.`,
+    `Era hora de saltar al césped sintético de la cancha interior.`,
+    ``,
+    `Al cruzar la línea de cal, el sensor holográfico del techo se encendió, proyectando las coordenadas de la cuadrícula táctica sobre el pasto:`,
+    `Desde la casilla central G3 hasta la zona de definición en L3 y el balcón del balcón J3.`,
+    `Frente a él, la portería M3 estaba custodiada por los hologramas reactivos del Blue Lock Man, configurados al máximo nivel de reflejos mecánicos.`,
+    ``,
+    `${pNombre} acomodó un lote de balones oficiales en la media luna.`,
+    `Inició con ejercicios de control orientado en velocidad: autopases elevados contra el muro de rebote, amortiguando la caída del esférico con la punta del botín con una suavidad inverosímil.`,
+    `El balón parecía quedar congelado en el aire antes de obedecer ciegamente la inercia de su carrera.`,
+    ``,
+    `—"El primer toque no es para frenar el juego; es para destruir la postura del defensa antes de que si quiera piense en barrerse."`,
+    ``,
+    `Aceleró en carrera diagonal desde la casilla K2 hacia el balcón J3, clavando los tacos en el césped para un cambio de ritmo brutal.`,
+    `Frente al primer maniquí de bloqueo, ejecutó un regate seco pisando el cuero hacia adentro, dejando al obstáculo clavado en el suelo como un espectador inmóvil.`,
+    `El ángulo de disparo era cerrado, a casi veinticinco metros de la portería M3 y con la silueta digital del arquero cubriendo el poste derecho.`,
+    ``,
+    `Fue en ese instante exacto donde el tiempo pareció ralentizarse.`,
+    `La flexión del tobillo, la rotación de la cadera, el punto de impacto milimétrico en la válvula del balón.`,
+    `Un latigazo seco y atronador rompió el aire del pabellón.`,
+    `El disparo viajó con una velocidad desmedida, dibujando una parábola imposible que perforó el ángulo superior izquierdo de la red antes de que los sensores del Blue Lock Man lograran registrar la trayectoria.`,
+    `El impacto contra las mallas resonó como un disparo de artillería en el domo cerrado.`,
+    ``,
+    `—"Perfecto. Pero aún no es suficiente. Otra vez."`,
+    ``,
+    `Repitió la secuencia diez, veinte, cincuenta veces más.`,
+    `Disparos con el empeine total, roscas con comba cerrada desde la banda 1L, remates de volea sin dejar caer el rebote y definiciones a ras de suelo ajustadas a la base del poste en A3 y M3.`,
+    `Sus músculos ardían bajo el esfuerzo prolongado, pero la dopamina de la perfección anulaba cualquier síntoma de dolor.`,
+    ``,
+    `Al culminar la sesión en cancha, se sentó sobre el balón en el centro de la casilla G3, regulando su respiración hasta devolverla a su calma glacial habitual.`,
+    `Tomó su toalla para secarse el sudor del rostro y revisó en la pantalla táctil de su muñeca el reporte biométrico:`,
+    `Frecuencia cardíaca máxima: 182 bpm. Distancia recorrida en sprints de alta intensidad: 8.4 kilómetros. Goles encajados al simulador: 48 de 50 intentos.`,
+    ``,
+    `—"El mercado no miente y los números tampoco. Cuando comience el partido oficial, solo seré yo devorando a los demás sobre el césped."`,
+    ``,
+    `Con una mirada implacable y el ego más afilado que nunca, se puso de pie, apagó los sensores de la cancha y se retiró con paso triunfal hacia los vestidores.`
+  ];
+
+  return lineas.join('\n');
+}
+
+// 10.5. Dedicated Humanized Roleplay Generator (50+ Lines)
+app.post('/api/ai/generate-roleplay', async (req: Request, res: Response) => {
+  try {
+    const {
+      personaje = 'Michael Kaiser',
+      tipoRol = 'entrenamiento', // 'entrenamiento' | 'partido' | 'social' | 'prueba_ficha' | 'libre'
+      actividades = ['gym', 'cancha'],
+      contexto = '',
+      longitudMinima = 50,
+      detallesExtra = ''
+    } = req.body;
+
+    const prompt = `Eres un veterano escritor literario de rol narrativo (RP de texto en español) de la comunidad de Blue Lock ("BLUE LOCK — REIGN OF EGOISTS").
+Tu objetivo es redactar un ROL DE TEXTO HUMANO, INMERSIVO Y PROFUNDO, de AL MENOS ${longitudMinima} LÍNEAS DE EXTENSIÓN.
+
+DATOS DEL PERSONAJE Y ROL:
+- Personaje a interpretar: "${personaje}"
+- Tipo de Rol: "${tipoRol}"
+- Actividades / Puntos: ${Array.isArray(actividades) ? actividades.join(', ') : actividades}
+- Contexto / Situación: ${contexto || 'Sesión de alto rendimiento en las instalaciones de Blue Lock'}
+${detallesExtra ? `- Detalles adicionales pedidos por el usuario: ${detallesExtra}` : ''}
+
+REGLAS DE HUMANIZACIÓN ANTI-IA (ESTRICTO):
+1. CERO CLICHÉS DE IA: No uses introducciones robóticas ("En este rol narraremos...", "A continuación presento mi rol...", "Como delantero de Blue Lock..."), ni listas con asteriscos en la narración, ni conclusiones tipo resumen ("En conclusión...", "Así fue como...").
+2. LITERARIO Y ORGÁNICO: Escribe en prosa fluida, con párrafos narrativos envolventes y diálogos naturales con guiones largos (—). Debe parecer escrito por un jugador humano apasionado con excelente redacción ortográfica y vocabulario rico.
+3. SENSORIALIDAD Y ACCIÓN REALISTA:
+   - Describe la fatiga física, el sudor frío, la textura del balón, el chirrido de los botines contra el césped artificial, el tintineo de los discos de pesas.
+   - Si es Entrenamiento de Gym: menciona ejercicios reales (series pesadas de sentadilla, peso muerto rumano, press de banca, dominadas lastradas, core).
+   - Si es Entrenamiento de Cancha: describe ejercicios de desmarque, casillas del campo (L3, G3, M3), tiros con efecto, controles orientados, regates pisando el balón y remates a la escuadra.
+   - Si es Rol Social / IG: charlas tensas en los pasillos de Blue Lock, miradas de rivalidad en el comedor o publicación desafiante en redes demostrando su valor de mercado.
+   - Si es Partido / Prueba de Ficha: describe la jugada completa sin "mano negra", con lógica táctica impecable, lectura del juego y definición voraz.
+4. PERSONALIDAD 100% FIEL AL PERSONAJE:
+   - Respeta el egoísmo característico, arrogancia, frialdad o fiereza de ${personaje}.
+5. EXTENSIÓN OBLIGATORIA (MUY IMPORTANTE):
+   - El rol DEBE TENER COMO MÍNIMO ${longitudMinima} A ${longitudMinima + 20} LÍNEAS DE TEXTO NARRADO (aproximadamente entre 700 y 1000 palabras en español).
+   - Estructura la narración con pausas dramáticas y oraciones en renglones separados, usando el formato clásico de roleplay literario de WhatsApp para que supere claramente las ${longitudMinima} líneas.
+   - Desarrolla ampliamente cada fase: preparación mental, entrada al campo/gym, ejecución técnica minuciosa de cada serie o jugada, monólogo interior de ego y cierre triunfal.
+
+Devuelve ÚNICAMENTE el texto narrativo del rol, listo para copiar a WhatsApp o a la ficha de Blue Lock.`;
+
+    let roleplayText = '';
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt
+      });
+      roleplayText = response.text || '';
+    } catch (apiErr) {
+      console.warn('Gemini generate-roleplay fallback:', apiErr);
+      roleplayText = generateFallbackRoleplay(personaje, tipoRol, longitudMinima);
+    }
+
+    if (!roleplayText || roleplayText.trim().length < 200) {
+      roleplayText = generateFallbackRoleplay(personaje, tipoRol, longitudMinima);
+    }
+
+    let lineCount = roleplayText.split('\n').filter(l => l.trim().length > 0).length;
+
+    // If lines are under target due to wide paragraphs, format by sentence breaks
+    if (lineCount < longitudMinima) {
+      const paragraphs = roleplayText.split('\n');
+      const expandedLines: string[] = [];
+      for (const p of paragraphs) {
+        if (!p.trim()) {
+          expandedLines.push('');
+          continue;
+        }
+        // Split by punctuation when line is long
+        if (p.length > 100) {
+          const sentences = p.split(/(?<=[.?!])\s+/);
+          expandedLines.push(...sentences);
+        } else {
+          expandedLines.push(p);
+        }
+      }
+      roleplayText = expandedLines.join('\n');
+      lineCount = roleplayText.split('\n').filter(l => l.trim().length > 0).length;
+    }
+
+    res.json({
+      success: true,
+      personaje,
+      tipoRol,
+      lineCount,
+      roleplayText
+    });
+  } catch (err: any) {
+    console.error('Error generating roleplay:', err);
+    res.status(500).json({ error: err.message || 'Error al generar rol' });
   }
 });
 

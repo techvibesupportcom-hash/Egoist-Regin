@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
-import { Target, Zap, Shield, Sparkles, Crosshair, Award, HelpCircle, Flame } from 'lucide-react';
+import { Target, Zap, Shield, Sparkles, Crosshair, Award, HelpCircle, Flame, Eye, Maximize2, Compass, Check } from 'lucide-react';
 
 export const CalculatorsTab: React.FC = () => {
   const [subTab, setSubTab] = useState<'zonas' | 'tiroLibre' | 'regate'>('zonas');
+  const [showFieldModal, setShowFieldModal] = useState<boolean>(false);
 
   // Shot zone states
   const [col, setCol] = useState<number>(3);
-  const [row, setRow] = useState<string>('L');
+  const [row, setRow] = useState<string>('G');
   const [baseTir, setBaseTir] = useState<number>(100);
   const [activeFlow, setActiveFlow] = useState<string>('none');
   const [predeterminadoFlow, setPredeterminadoFlow] = useState<string>('none');
@@ -40,15 +41,26 @@ export const CalculatorsTab: React.FC = () => {
   const columns = [1, 2, 3, 4, 5];
   const rows = ['M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
 
-  // Zone multiplier calculation based on rules
+  // Zone multiplier calculation based on official pitch rules
   const getMultiplier = (r: string, c: number): { mult: number; label: string; color: string } => {
+    // Exact goals
+    if (r === 'M' && c === 3) {
+      return { mult: 1.0, label: '🥅 Portería Norte (M3) - Remate a Puerta Directo', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500' };
+    }
+    if (r === 'A' && c === 3) {
+      return { mult: 1.0, label: '🥅 Portería Sur (A3) - Remate a Puerta Directo', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500' };
+    }
+    // Exact center circle
+    if (r === 'G' && c === 3) {
+      return { mult: 0.1, label: '⚽ Centro de Cancha (G3) - Círculo Central de Saque', color: 'bg-purple-500/20 text-purple-300 border-purple-500' };
+    }
     // Green areas (x1.0): 2-4/L-M and 2-4/A-B
     if (['L', 'M', 'A', 'B'].includes(r) && [2, 3, 4].includes(c)) {
-      return { mult: 1.0, label: 'Área Chica (Zona Verde)', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500' };
+      return { mult: 1.0, label: 'Área Chica / Definición (Zona Verde)', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500' };
     }
     // Deep Wings & 3/4 lines (x0.9): 1L, 5L, 1M, 5M, H, F
     if (['H', 'F'].includes(r) || (['L', 'M', 'B', 'A'].includes(r) && [1, 5].includes(c))) {
-      return { mult: 0.9, label: 'Zona Ofensiva Profunda', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500' };
+      return { mult: 0.9, label: 'Zona Ofensiva Profunda / Desborde', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500' };
     }
     // Lateral Big Area (x0.8): 1K, 5K, 1C, 5C
     if (['K', 'C'].includes(r) && [1, 5].includes(c)) {
@@ -56,11 +68,11 @@ export const CalculatorsTab: React.FC = () => {
     }
     // Creation lines (x0.7): I, E, 1J, 5J, 1D, 5D
     if (['I', 'E'].includes(r) || (['J', 'D'].includes(r) && [1, 5].includes(c))) {
-      return { mult: 0.7, label: 'Línea de Creación', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500' };
+      return { mult: 0.7, label: 'Línea de Creación / Mediocampo Ofensivo', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500' };
     }
     // Balcony / Intersections (x0.2): 3J, 3D, 2J, 4J, 2D, 4D
     if (['J', 'D'].includes(r) && [2, 3, 4].includes(c)) {
-      return { mult: 0.2, label: 'Balcón del Área', color: 'bg-amber-500/20 text-amber-300 border-amber-500' };
+      return { mult: 0.2, label: 'Balcón del Área (Tiro de Media Distancia)', color: 'bg-amber-500/20 text-amber-300 border-amber-500' };
     }
     // Low probability (x0.1): Semicircles (2-4/K, 2-4/C), Center Circle G1-5
     return { mult: 0.1, label: 'Baja Probabilidad / Media Cancha', color: 'bg-rose-500/20 text-rose-300 border-rose-500' };
@@ -217,56 +229,141 @@ export const CalculatorsTab: React.FC = () => {
 
       {subTab === 'zonas' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Interactive Field Grid */}
+          {/* Interactive Field Grid with Official Blue Lock Pitch Image */}
           <div className="lg:col-span-5 border border-slate-800 bg-[#070b18] rounded-2xl p-5 flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono uppercase tracking-widest text-cyan-400">Plano de Coordenadas (A-M / 1-5)</span>
-                <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
-                  Casilla: {row}{col} ({currentZone.mult}x)
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-mono uppercase tracking-widest text-cyan-400 flex items-center gap-1.5">
+                  <Compass className="w-4 h-4 text-cyan-400" />
+                  Cancha Oficial Blue Lock (1-5 / M-A)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowFieldModal(true)}
+                  className="flex items-center gap-1 text-[11px] font-mono text-cyan-300 hover:text-white bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded transition"
+                >
+                  <Maximize2 className="w-3 h-3" />
+                  Ver Cancha HD
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 p-2 rounded-xl mb-3">
+                <span className="text-xs text-slate-300 font-mono">
+                  Casilla Activa: <strong className="text-cyan-400 font-bold text-sm">{row}{col}</strong>
+                </span>
+                <span className={`text-[11px] px-2 py-0.5 rounded font-mono font-bold border ${currentZone.color}`}>
+                  {currentZone.mult}x Multiplicador
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mb-4">
-                Haz clic sobre cualquier cuadrícula para posicionar a tu jugador y calcular el multiplicador de tiro.
-              </p>
 
-              {/* Pitch Diagram */}
-              <div className="relative border-2 border-slate-700 rounded-xl bg-gradient-to-b from-[#09152b] via-[#0b1c3a] to-[#09152b] p-3 overflow-hidden shadow-inner">
-                {/* Goal area top & bottom */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 border-b-2 border-x-2 border-cyan-500/50 bg-cyan-950/20" />
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-28 h-6 border-t-2 border-x-2 border-cyan-500/50 bg-cyan-950/20" />
-                <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-700/60" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border border-slate-700/60" />
+              {/* Quick Jump Hotkeys for key tactical zones */}
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                <button
+                  type="button"
+                  onClick={() => { setRow('M'); setCol(3); }}
+                  className={`px-2 py-1 rounded text-[10px] font-mono font-bold border transition ${
+                    row === 'M' && col === 3
+                      ? 'bg-emerald-500 text-slate-950 border-white'
+                      : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40 hover:bg-emerald-900/60'
+                  }`}
+                >
+                  🥅 Portería Norte (M3)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRow('G'); setCol(3); }}
+                  className={`px-2 py-1 rounded text-[10px] font-mono font-bold border transition ${
+                    row === 'G' && col === 3
+                      ? 'bg-purple-500 text-white border-white'
+                      : 'bg-purple-950/40 text-purple-300 border-purple-800/40 hover:bg-purple-900/60'
+                  }`}
+                >
+                  ⚽ Centro (G3)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRow('A'); setCol(3); }}
+                  className={`px-2 py-1 rounded text-[10px] font-mono font-bold border transition ${
+                    row === 'A' && col === 3
+                      ? 'bg-emerald-500 text-slate-950 border-white'
+                      : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40 hover:bg-emerald-900/60'
+                  }`}
+                >
+                  🥅 Portería Sur (A3)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRow('J'); setCol(3); }}
+                  className={`px-2 py-1 rounded text-[10px] font-mono font-bold border transition ${
+                    row === 'J' && col === 3
+                      ? 'bg-amber-500 text-slate-950 border-white'
+                      : 'bg-amber-950/40 text-amber-300 border-amber-800/40 hover:bg-amber-900/60'
+                  }`}
+                >
+                  🔥 Balcón (J3)
+                </button>
+              </div>
 
-                <div className="grid grid-cols-5 gap-1.5 relative z-10 text-center font-mono">
-                  {rows.map((r) =>
-                    columns.map((c) => {
-                      const isSelected = row === r && col === c;
-                      const z = getMultiplier(r, c);
-                      return (
-                        <button
-                          key={`${r}-${c}`}
-                          onClick={() => { setRow(r); setCol(c); }}
-                          title={`Casilla ${r}${c} (${z.mult}x)`}
-                          className={`h-7 rounded text-[11px] font-bold flex items-center justify-center transition border ${
-                            isSelected
-                              ? 'bg-cyan-400 text-black border-white shadow-[0_0_12px_rgba(6,182,212,0.8)] scale-105 z-20'
-                              : z.mult === 1.0
-                              ? 'bg-emerald-500/30 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/50'
-                              : z.mult >= 0.8
-                              ? 'bg-cyan-950/40 text-cyan-300 border-cyan-800/40 hover:bg-cyan-900/60'
-                              : z.mult >= 0.7
-                              ? 'bg-indigo-950/40 text-indigo-300 border-indigo-800/40 hover:bg-indigo-900/60'
-                              : z.mult === 0.2
-                              ? 'bg-amber-950/40 text-amber-300 border-amber-800/40 hover:bg-amber-900/60'
-                              : 'bg-slate-900/60 text-slate-500 border-slate-800 hover:bg-slate-800'
-                          }`}
-                        >
-                          {r}{c}
-                        </button>
-                      );
-                    })
-                  )}
+              {/* Pitch Diagram with real image background */}
+              <div className="relative border-2 border-emerald-800/60 rounded-2xl overflow-hidden shadow-2xl bg-[#092212]">
+                {/* Background Image: User's Official Pitch */}
+                <img
+                  src="/assets/aistudio/IMG-20261028-WA0026_1__c2579bbf.jpg"
+                  alt="Cancha Táctica Oficial Blue Lock"
+                  className="w-full h-auto object-cover opacity-90 block"
+                />
+
+                {/* Overlaid Interactive Coordinate Grid */}
+                <div className="absolute inset-0 pt-7 pb-2 px-2 pr-6 flex flex-col justify-between">
+                  {rows.map((r) => (
+                    <div key={r} className="flex-1 grid grid-cols-5 gap-1 items-center">
+                      {columns.map((c) => {
+                        const isSelected = row === r && col === c;
+                        const isM3 = r === 'M' && c === 3;
+                        const isG3 = r === 'G' && c === 3;
+                        const isA3 = r === 'A' && c === 3;
+                        const z = getMultiplier(r, c);
+
+                        return (
+                          <button
+                            key={`${r}-${c}`}
+                            type="button"
+                            onClick={() => { setRow(r); setCol(c); }}
+                            title={`Casilla ${r}${c} - ${z.label} (${z.mult}x)`}
+                            className={`h-full min-h-[22px] max-h-[36px] rounded text-[10px] font-mono font-bold flex items-center justify-center transition-all ${
+                              isSelected
+                                ? 'bg-cyan-400 text-slate-950 border-2 border-white shadow-[0_0_15px_rgba(6,182,212,1)] scale-110 z-30 font-extrabold ring-2 ring-cyan-300'
+                                : isM3 || isA3
+                                ? 'bg-emerald-950/70 hover:bg-emerald-800 text-emerald-200 border border-emerald-400/70 shadow-sm'
+                                : isG3
+                                ? 'bg-purple-950/70 hover:bg-purple-800 text-purple-200 border border-purple-400/70 shadow-sm'
+                                : z.mult === 1.0
+                                ? 'bg-emerald-950/40 hover:bg-emerald-800/60 text-emerald-200 border border-emerald-600/40'
+                                : z.mult >= 0.8
+                                ? 'bg-cyan-950/40 hover:bg-cyan-800/60 text-cyan-200 border border-cyan-600/40'
+                                : z.mult === 0.2
+                                ? 'bg-amber-950/40 hover:bg-amber-800/60 text-amber-200 border border-amber-600/40'
+                                : 'bg-slate-950/30 hover:bg-slate-900/60 text-slate-200 border border-white/20'
+                            }`}
+                          >
+                            {isSelected ? (
+                              <span className="flex items-center gap-0.5">
+                                ⚽ {r}{c}
+                              </span>
+                            ) : isM3 ? (
+                              '🥅 M3'
+                            ) : isG3 ? (
+                              '⚽ G3'
+                            ) : isA3 ? (
+                              '🥅 A3'
+                            ) : (
+                              `${r}${c}`
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -716,6 +813,51 @@ export const CalculatorsTab: React.FC = () => {
               {regResult}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Official Blue Lock Field Modal (HD Lightbox) */}
+      {showFieldModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#080d1e] border-2 border-emerald-500/50 rounded-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="font-chakra font-bold text-white text-lg flex items-center gap-2">
+                  <Compass className="w-5 h-5 text-emerald-400" />
+                  Cancha Oficial Blue Lock (1 a 5 / M a A)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Portería Norte: M3 | Centro: G3 | Portería Sur: A3
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFieldModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 flex justify-center bg-slate-950">
+              <img
+                src="/assets/aistudio/IMG-20261028-WA0026_1__c2579bbf.jpg"
+                alt="Plano Táctico HD de Blue Lock"
+                className="max-h-[72vh] w-auto rounded-xl object-contain border border-emerald-600/40 shadow-xl"
+              />
+            </div>
+
+            <div className="p-3.5 border-t border-slate-800 bg-[#080d1e] flex items-center justify-between text-xs font-mono text-slate-400">
+              <span>Casilla seleccionada: <strong className="text-cyan-400 font-bold">{row}{col}</strong></span>
+              <button
+                type="button"
+                onClick={() => setShowFieldModal(false)}
+                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold"
+              >
+                Cerrar Plano
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

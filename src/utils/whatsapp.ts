@@ -59,15 +59,19 @@ _Pase_ ─ \`${sheet.stats.pase}\`
 _IQ_ ── \`${sheet.stats.iq}\`
 ━━━━━━━━━━━━━━━ ✦ ━━━━━━━━━━━━━━━
 *` + `𝐈𝐕. 𝐏𝐑𝐎𝐆𝐑𝐄𝐒𝐎 (Determina tu valor y ranking)` + `*
-*Nivel ${sheet.progreso.nivel}:*
-Valor de Mercado: \`\`\`${sheet.progreso.valorMercado} ¥\`\`\`
-*Victorias:* ${sheet.progreso.victorias}
-*Derrotas:* ${sheet.progreso.derrotas}
-*Empates:* ${sheet.progreso.empates}
-*Goles:* ${sheet.progreso.goles}
-*Robos:* ${sheet.progreso.robos}
-*Asistencias:* ${sheet.progreso.asistencias}
-*MVP:* ${sheet.progreso.mvp}
+
+*Nivel ${sheet.progreso?.nivel || 1}:*
+
+*Valor de Mercado*
+\`\`\`${sheet.progreso?.valorMercado || 300} ¥\`\`\`
+
+*Victorias: ${sheet.progreso?.victorias || 0}*
+*Derrotas: ${sheet.progreso?.derrotas || 0}*
+*Empates: ${sheet.progreso?.empates || 0}*
+*Goles: ${sheet.progreso?.goles || 0}*
+*Robos: ${sheet.progreso?.robos || 0}*
+*Asistencias: ${sheet.progreso?.asistencias || 0}*
+*MVP: ${sheet.progreso?.mvp || 0}*
 ━━━━━━━━━━━━━━━ ✦ ━━━━━━━━━━━━━━━
 *` + `𝐏𝐄𝐑𝐅𝐈𝐋 𝐃𝐄𝐋 𝐏𝐉` + `*
 *✦ Personalidad:*
@@ -88,8 +92,8 @@ ${sheet.historia}
 ${sheet.compromiso}
 ━━━━━━━━━━━━━━━ ✦ ━━━━━━━━━━━━━━━
 *` + `🌑 𝐑𝐄𝐕𝐈𝐒𝐈𝐎́𝐍 𝐃𝐄 𝐀𝐃𝐌𝐈𝐍𝐈𝐒𝐓𝐑𝐀𝐂𝐈𝐎́𝐍` + `*
-\`\`\`${sheet.status === 'aprobado' ? '🌑 Aprobado por ' + (sheet.adminRevisor || 'Staff') : sheet.status === 'rechazado' ? '❌ Rechazado' : '⏳ Pendiente de Aprobación'}\`\`\`
-${sheet.adminComentario ? `*Observación:* ${sheet.adminComentario}\n` : ''}━━━━━━━━━━━━━━━ ✦ ━━━━━━━━━━━━━━━
+\`\`\`${sheet.status === 'aprobado' ? '🌑 Aprobado por ' + (sheet.adminRevisor || 'Administración') : sheet.status === 'rechazado' ? '❌ Rechazado' : '⏳ Pendiente de Aprobación por los 5 Admins'}\`\`\`
+${sheet.adminComentario ? `*Observación del Staff:* ${sheet.adminComentario}\n` : ''}━━━━━━━━━━━━━━━ ✦ ━━━━━━━━━━━━━━━
 ╲╱ٕ♰ ٣ֻٍ     *` + `𝐎𝐍𝐋𝐘 𝐓𝐇𝐄 𝐄𝐆𝐎𝐈𝐒𝐓 𝐖𝐈𝐋𝐋 𝐑𝐄𝐌𝐀𝐈𝐍.` + `*     🍒̳֞▐`;
 }
 

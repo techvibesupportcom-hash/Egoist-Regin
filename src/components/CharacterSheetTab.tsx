@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { CharacterSheet, StatKey, Club } from '../types.ts';
 import { generateSheetWhatsAppText, openWhatsAppShare } from '../utils/whatsapp.ts';
-import { Shield, Sparkles, CheckCircle, AlertTriangle, Copy, Share2, Bot, Save, User, Swords, Zap, Eye, Flame, Camera, Upload, Trash2 } from 'lucide-react';
+import { Shield, Sparkles, CheckCircle, AlertTriangle, Copy, Share2, Bot, Save, User, Swords, Zap, Eye, Flame, Camera, Upload, Trash2, Send, Trophy, TrendingUp, Plus, Minus, Award } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface CharacterSheetTabProps {
@@ -118,11 +118,44 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
   );
 
   const [saving, setSaving] = useState(false);
+  const [submittingApproval, setSubmittingApproval] = useState(false);
+  const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [copyNotice, setCopyNotice] = useState(false);
   const [aiEvaluation, setAiEvaluation] = useState<any>(formData.iaEvaluacion || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [generatingAiProofRole, setGeneratingAiProofRole] = useState(false);
+
+  const handleGenerateAiProofRole = async () => {
+    setGeneratingAiProofRole(true);
+    try {
+      const res = await fetch('/api/ai/generate-roleplay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personaje: formData.nombre || 'Michael Kaiser',
+          tipoRol: 'prueba_ficha',
+          longitudMinima: 50,
+          contexto: `Prueba de rol oficial de personaje para aprobación en Blue Lock. Posición: ${formData.posicionPrincipal}. Arma: ${formData.arma || 'Tiro de precisión'}. Personalidad: ${formData.personalidad || 'Mentalidad egoísta pura'}.`
+        })
+      });
+
+      const data = await res.json();
+      if (data.roleplayText) {
+        setFormData(prev => ({
+          ...prev,
+          pruebaRol: data.roleplayText
+        }));
+        confetti({ particleCount: 60, spread: 50 });
+      }
+    } catch (e) {
+      console.error('Error generating proof roleplay:', e);
+      alert('Error al generar la prueba de rol. Por favor intenta de nuevo.');
+    } finally {
+      setGeneratingAiProofRole(false);
+    }
+  };
 
   const handleDeviceImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -187,6 +220,10 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
     Number(formData.stats.pase) +
     Number(formData.stats.iq);
 
+  const [isUnlimitedMode, setIsUnlimitedMode] = useState<boolean>(() => {
+    return totalPoints > 30 || (formData.progreso?.nivel || 1) > 1;
+  });
+
   const personalityLines = formData.personalidad.split('\n').filter(l => l.trim().length > 0).length;
   const roleplayLines = formData.pruebaRol.split('\n').filter(l => l.trim().length > 0).length;
 
@@ -200,6 +237,33 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
     }));
   };
 
+  const calculateLevelFromStats = (g: number, a: number, v: number, r: number): number => {
+    if (g >= 35 && a >= 27 && v >= 25 && r >= 60) return 10;
+    if (g >= 30 && a >= 23 && v >= 20 && r >= 50) return 9;
+    if (g >= 25 && a >= 19 && v >= 16 && r >= 40) return 8;
+    if (g >= 20 && a >= 15 && v >= 13 && r >= 30) return 7;
+    if (g >= 16 && a >= 12 && v >= 10 && r >= 25) return 6;
+    if (g >= 12 && a >= 9 && v >= 8 && r >= 20) return 5;
+    if (g >= 10 || a >= 8 || v >= 5 || r >= 8) return 4;
+    if (g >= 6 || a >= 6 || v >= 3 || r >= 5) return 3;
+    if (g >= 3 || a >= 3 || v >= 2 || r >= 3) return 2;
+    return 1;
+  };
+
+  const handleProgressChange = (field: keyof typeof formData.progreso, val: number) => {
+    const updated = {
+      ...formData.progreso,
+      [field]: Math.max(0, val)
+    };
+    if (['goles', 'asistencias', 'victorias', 'robos'].includes(field)) {
+      updated.nivel = calculateLevelFromStats(updated.goles, updated.asistencias, updated.victorias, updated.robos);
+    }
+    setFormData(prev => ({
+      ...prev,
+      progreso: updated
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -207,6 +271,33 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
       confetti({ particleCount: 50, spread: 50 });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSubmitForApproval = async () => {
+    setSubmittingApproval(true);
+    try {
+      const sheetToSubmit: CharacterSheet = {
+        ...formData,
+        status: 'pendiente'
+      };
+      setFormData(sheetToSubmit);
+      await onSaveSheet(sheetToSubmit);
+
+      await fetch(`/api/sheets/${formData.id}/submit-for-approval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sheet: sheetToSubmit })
+      });
+
+      confetti({ particleCount: 90, spread: 80 });
+      setApprovalNotice('¡Ficha enviada con éxito a los 5 Administradores (Chinatsu/Kaiser, Poseidón, Sae Itoshi, Nagi Seishiro, Fuji Kiseki)! Notificación generada en la directiva.');
+      setTimeout(() => setApprovalNotice(null), 8000);
+    } catch (e) {
+      console.error(e);
+      alert('Hubo un error al enviar la ficha. Por favor intenta de nuevo.');
+    } finally {
+      setSubmittingApproval(false);
     }
   };
 
@@ -297,15 +388,40 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
           </button>
 
           <button
+            onClick={handleSubmitForApproval}
+            disabled={submittingApproval}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white rounded-xl text-xs font-chakra font-bold transition shadow-lg shadow-cyan-500/20"
+          >
+            <Send className="w-4 h-4" />
+            {submittingApproval ? 'Enviando a Admins...' : '🚀 Enviar a Admins para Aprobación'}
+          </button>
+
+          <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded-xl text-xs font-chakra font-bold transition shadow-lg"
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/40 rounded-xl text-xs font-chakra font-bold transition shadow"
           >
             <Save className="w-4 h-4" />
-            {saving ? 'Guardando...' : 'Guardar Ficha'}
+            {saving ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
       </div>
+
+      {/* Approval Success Notice */}
+      {approvalNotice && (
+        <div className="border border-emerald-500/50 bg-emerald-950/40 text-emerald-200 rounded-xl p-4 flex items-center justify-between gap-3 text-xs font-mono shadow-lg animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span>{approvalNotice}</span>
+          </div>
+          <button
+            onClick={() => setApprovalNotice(null)}
+            className="text-emerald-400 hover:text-white px-2 py-1 text-xs underline font-bold"
+          >
+            Entendido
+          </button>
+        </div>
+      )}
 
       {/* Admin Observation Banner if any */}
       {formData.adminComentario && (
@@ -616,24 +732,65 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
         <div className="lg:col-span-8 space-y-6">
           {/* Stats Distribution (Exact 30 Initial Points) */}
           <div className="border border-slate-800 bg-[#080d1e] rounded-2xl p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-lg font-chakra font-bold text-white flex items-center gap-2">
                   <Zap className="w-5 h-5 text-yellow-400" />
-                  Estadísticas Iniciales (30 Puntos Obligatorios)
+                  Estadísticas del Jugador
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Reparte exactamente 30 puntos entre todas las estadísticas para nivel 1.
+                  {isUnlimitedMode
+                    ? 'Modo Progresión / Veterano: asigna tus puntos libres según tus entrenamientos y renacimientos.'
+                    : 'Modo Nuevo Ingreso: reparte exactamente 30 puntos base entre todas las estadísticas.'}
                 </p>
               </div>
 
-              <div className={`px-4 py-1.5 rounded-xl font-mono text-xs font-bold border flex items-center gap-2 ${
-                totalPoints === 30
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                  : 'bg-rose-500/20 text-rose-300 border-rose-500/50 animate-pulse'
-              }`}>
-                <span>Total Asignado: {totalPoints} / 30 Pts</span>
-                {totalPoints === 30 ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-rose-400" />}
+              {/* Selector de Modo: 30 Pts Nuevos vs Ilimitado Veteranos */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center bg-slate-900 border border-slate-700 p-0.5 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setIsUnlimitedMode(false)}
+                    className={`px-3 py-1 text-xs font-mono font-bold rounded-lg transition ${
+                      !isUnlimitedMode
+                        ? 'bg-emerald-500 text-slate-950 shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Nuevo (30 Pts)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsUnlimitedMode(true)}
+                    className={`px-3 py-1 text-xs font-mono font-bold rounded-lg transition ${
+                      isUnlimitedMode
+                        ? 'bg-cyan-500 text-slate-950 shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Progresión (Ilimitado)
+                  </button>
+                </div>
+
+                <div className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold border flex items-center gap-2 ${
+                  isUnlimitedMode
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'
+                    : totalPoints === 30
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                    : 'bg-rose-500/20 text-rose-300 border-rose-500/50 animate-pulse'
+                }`}>
+                  {isUnlimitedMode ? (
+                    <>
+                      <span>Total: {totalPoints} Pts (Ilimitado)</span>
+                      <CheckCircle className="w-4 h-4 text-cyan-400" />
+                    </>
+                  ) : (
+                    <>
+                      <span>Total: {totalPoints} / 30 Pts</span>
+                      {totalPoints === 30 ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-rose-400" />}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -654,7 +811,6 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
                   <input
                     type="number"
                     min="0"
-                    max="30"
                     value={formData.stats[s.key]}
                     onChange={(e) => handleStatChange(s.key, Number(e.target.value))}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-base font-bold outline-none focus:border-cyan-400"
@@ -681,6 +837,111 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
                 placeholder="Ej: Tiro Kaiser Impact - Disparo de altísima velocidad y precisión con efecto."
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-cyan-400"
               />
+            </div>
+          </div>
+
+          {/* IV. PROGRESO (Determina tu valor y ranking) */}
+          <div className="border border-slate-800 bg-[#080d1e] rounded-2xl p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-lg font-chakra font-bold text-white flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-amber-400" />
+                  IV. Progreso (Determina tu valor y ranking)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Tus goles, asistencias y victorias determinan tu nivel automático y cotización en el ranking.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl font-mono text-xs font-bold">
+                  Nivel {formData.progreso.nivel}
+                </span>
+                <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded-xl font-mono text-xs font-bold">
+                  ¥{formData.progreso.valorMercado.toLocaleString()} Yenes
+                </span>
+              </div>
+            </div>
+
+            {/* Valor de Mercado & Nivel Custom Control */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                <label className="text-xs font-mono font-bold text-cyan-400 uppercase flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  Valor de Mercado Actual (¥)
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500 font-mono text-base font-bold">¥</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="10"
+                    value={formData.progreso.valorMercado}
+                    onChange={(e) => handleProgressChange('valorMercado', Number(e.target.value))}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-base font-bold outline-none focus:border-cyan-400"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-500 block">Base inicial ¥300. Sube con goles, victorias y entrenamientos.</span>
+              </div>
+
+              <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                <label className="text-xs font-mono font-bold text-amber-400 uppercase flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5" />
+                  Nivel de Jugador (1 a 20)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={formData.progreso.nivel}
+                  onChange={(e) => handleProgressChange('nivel', Number(e.target.value))}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white font-mono text-base font-bold outline-none focus:border-cyan-400"
+                />
+                <span className="text-[10px] text-slate-500 block">Se recalcula por tus estadísticas o según tus Renacimientos.</span>
+              </div>
+            </div>
+
+            {/* Match Stats Grid: Goles, Asistencias, Robos, Victorias, Derrotas, Empates, MVP */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 pt-1">
+              {[
+                { key: 'goles' as const, label: 'Goles', icon: '⚽', color: 'text-emerald-400' },
+                { key: 'asistencias' as const, label: 'Asistencias', icon: '🎯', color: 'text-cyan-400' },
+                { key: 'robos' as const, label: 'Robos', icon: '🛡️', color: 'text-indigo-400' },
+                { key: 'victorias' as const, label: 'Victorias', icon: '🏆', color: 'text-amber-400' },
+                { key: 'derrotas' as const, label: 'Derrotas', icon: '❌', color: 'text-rose-400' },
+                { key: 'empates' as const, label: 'Empates', icon: '⚖️', color: 'text-slate-400' },
+                { key: 'mvp' as const, label: 'MVP', icon: '⭐', color: 'text-yellow-400' },
+              ].map((stat) => (
+                <div key={stat.key} className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 text-center space-y-1">
+                  <div className="flex items-center justify-center gap-1 text-[11px] font-mono font-bold text-slate-300">
+                    <span>{stat.icon}</span>
+                    <span>{stat.label}</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleProgressChange(stat.key, (formData.progreso[stat.key] || 0) - 1)}
+                      className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.progreso[stat.key] || 0}
+                      onChange={(e) => handleProgressChange(stat.key, Number(e.target.value))}
+                      className="w-12 bg-slate-900 border border-slate-700 rounded py-0.5 text-center text-white font-mono text-sm font-bold outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleProgressChange(stat.key, (formData.progreso[stat.key] || 0) + 1)}
+                      className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -926,20 +1187,31 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
 
             {/* Prueba de Rol */}
             <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-xs text-slate-400 font-mono uppercase">
-                  Prueba de Rol (Mínimo 15 líneas narradas)
-                </label>
+              <div className="flex flex-wrap justify-between items-center gap-2 mb-1">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-slate-400 font-mono uppercase">
+                    Prueba de Rol (Mínimo 15 líneas narradas)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiProofRole}
+                    disabled={generatingAiProofRole}
+                    className="flex items-center gap-1 px-2.5 py-0.5 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-lg text-[10px] font-mono font-bold transition shadow-sm disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    {generatingAiProofRole ? 'Redactando (+50 líneas)...' : '✨ Redactar Prueba con IA (50+ líneas)'}
+                  </button>
+                </div>
                 <span className={`text-[11px] font-mono font-bold ${roleplayLines >= 15 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  Líneas escritas: {roleplayLines} / 15
+                  Líneas escritas: {roleplayLines} / 15 {roleplayLines >= 50 && '(¡Excelente extensión! ✓)'}
                 </span>
               </div>
               <textarea
-                rows={6}
+                rows={8}
                 value={formData.pruebaRol}
                 onChange={(e) => setFormData({ ...formData, pruebaRol: e.target.value })}
                 placeholder="Narra una jugada completa: posición inicial de casilla (ej. L3), movimiento táctico, duelo o remate a puerta respetando la lógica y sin mano negra..."
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 outline-none focus:border-cyan-400 font-mono"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 outline-none focus:border-cyan-400 font-mono leading-relaxed"
               />
             </div>
 
@@ -952,6 +1224,71 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
                 onChange={(e) => setFormData({ ...formData, compromiso: e.target.value })}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-300 outline-none"
               />
+            </div>
+          </div>
+
+          {/* 🌑 REVISIÓN DE ADMINISTRACIÓN */}
+          <div className="border border-slate-800 bg-[#080d1e] rounded-2xl p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-lg font-chakra font-bold text-white flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-cyan-400" />
+                  🌑 Revisión de Administración (5 Admins Oficiales)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Panel de supervisión y dictamen oficial de: Chinatsu/Kaiser (Owner), Poseidón (Co-owner), Sae Itōshi, Nagi Seishirō y Fuji Kiseki.
+                </p>
+              </div>
+
+              <div className={`px-4 py-1.5 rounded-xl font-mono text-xs font-bold border flex items-center gap-2 ${
+                formData.status === 'aprobado'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                  : formData.status === 'rechazado'
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+              }`}>
+                {formData.status === 'aprobado' ? '🌑 Aprobado' : formData.status === 'rechazado' ? '❌ Rechazado' : '⏳ Pendiente de Aprobación'}
+              </div>
+            </div>
+
+            {formData.adminComentario && (
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs font-mono space-y-1">
+                <span className="text-amber-400 font-bold block">Observaciones del Administrador ({formData.adminRevisor || 'Staff'}):</span>
+                <p className="text-slate-300">{formData.adminComentario}</p>
+              </div>
+            )}
+
+            <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <span className="text-slate-400 font-mono">
+                ¿Has terminado tu ficha o actualizado tus progresos? Envíala para que los admins la aprueben con un solo click.
+              </span>
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleSubmitForApproval}
+                  disabled={submittingApproval}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500 hover:from-blue-500 hover:to-emerald-400 text-white rounded-xl text-xs font-chakra font-bold transition shadow-lg shadow-cyan-500/20"
+                >
+                  <Send className="w-4 h-4" />
+                  {submittingApproval ? 'Enviando...' : '🚀 Enviar a los Admins'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareWhatsApp}
+                  className="flex items-center gap-1.5 px-3 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-bold transition shadow"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyWhatsApp}
+                  className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-mono transition"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  {copyNotice ? '¡Copiado!' : 'Copiar'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

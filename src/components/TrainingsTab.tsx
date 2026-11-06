@@ -25,6 +25,43 @@ export const TrainingsTab: React.FC<TrainingsTabProps> = ({
   const proofImageInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copyNotice, setCopyNotice] = useState(false);
+  const [generatingAiRole, setGeneratingAiRole] = useState(false);
+
+  const handleGenerateAiTrainingRole = async () => {
+    setGeneratingAiRole(true);
+    try {
+      const activeActs = [
+        gym && 'Gym (+30)',
+        cancha && 'Cancha (+30)',
+        rolSocial && 'Social (+10)',
+        instagram && 'Instagram (+10)',
+        actividades && 'Actividades Especiales (+20)'
+      ].filter(Boolean);
+
+      const res = await fetch('/api/ai/generate-roleplay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personaje: currentSheet?.nombre || 'Michael Kaiser',
+          tipoRol: 'entrenamiento',
+          actividades: activeActs,
+          longitudMinima: 50,
+          contexto: `Sesión de entrenamiento de alto rendimiento en Blue Lock completando: ${activeActs.join(', ')}`
+        })
+      });
+
+      const data = await res.json();
+      if (data.roleplayText) {
+        setComprobanteTexto(data.roleplayText);
+        confetti({ particleCount: 60, spread: 50 });
+      }
+    } catch (e) {
+      console.error('Error generating AI training role:', e);
+      alert('Error al generar rol de entrenamiento. Por favor intenta de nuevo.');
+    } finally {
+      setGeneratingAiRole(false);
+    }
+  };
 
   const handleProofImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -293,15 +330,26 @@ export const TrainingsTab: React.FC<TrainingsTabProps> = ({
 
             {/* Proof Input */}
             <div className="space-y-2 pt-2">
-              <label className="text-xs text-slate-300 font-mono uppercase block">
-                Comprobante / Narración del Entrenamiento
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-slate-300 font-mono uppercase block">
+                  Comprobante / Narración del Entrenamiento
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGenerateAiTrainingRole}
+                  disabled={generatingAiRole}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white rounded-lg text-xs font-mono font-bold transition shadow-sm disabled:opacity-50"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {generatingAiRole ? 'Redactando (+50 líneas)...' : '✨ Redactar Rol con IA (50+ líneas)'}
+                </button>
+              </div>
               <textarea
-                rows={3}
+                rows={5}
                 value={comprobanteTexto}
                 onChange={(e) => setComprobanteTexto(e.target.value)}
-                placeholder="Pega aquí el enlace del mensaje en WhatsApp, o resume brevemente tu sesión de rol/entrenamiento..."
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white outline-none focus:border-cyan-400 font-mono"
+                placeholder="Pega aquí tu rol narrado (mínimo 50 líneas) o presiona '✨ Redactar Rol con IA' para generarlo al instante..."
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white outline-none focus:border-cyan-400 font-mono leading-relaxed"
               />
 
               {/* Hidden file input for training proof */}
