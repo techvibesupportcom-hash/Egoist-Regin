@@ -284,11 +284,14 @@ export const CharacterSheetTab: React.FC<CharacterSheetTabProps> = ({
       setFormData(sheetToSubmit);
       await onSaveSheet(sheetToSubmit);
 
-      await fetch(`/api/sheets/${formData.id}/submit-for-approval`, {
+      const res = await fetch(`/api/sheets/${formData.id}/submit-for-approval`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sheet: sheetToSubmit })
       });
+      if (!res.ok) {
+        throw new Error(`Error ${res.status} al enviar la ficha`);
+      }
 
       confetti({ particleCount: 90, spread: 80 });
       setApprovalNotice('¡Ficha enviada con éxito a los 5 Administradores (Chinatsu/Kaiser, Poseidón, Sae Itoshi, Nagi Seishiro, Fuji Kiseki)! Notificación generada en la directiva.');
