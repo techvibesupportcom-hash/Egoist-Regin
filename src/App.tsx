@@ -62,6 +62,9 @@ export default function App() {
 
   useEffect(() => {
     fetchState();
+    // Refresco periódico para que todos los admins vean al instante las fichas nuevas
+    const interval = setInterval(fetchState, 20000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogin = (newSession: UserSession) => {
